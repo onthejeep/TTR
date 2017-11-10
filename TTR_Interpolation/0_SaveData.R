@@ -7,7 +7,7 @@ setwd('D:/MySVN/UA-Research/Dr Xia/R Code/TTR_Interpolation/TTR_Interpolation');
 
 Database.Open.Sqlite = function()
 {
-    Connection = dbConnect(RSQLite::SQLite(), dbname = 'hot_od.sqlite');
+    Connection = dbConnect(RSQLite::SQLite(), dbname = 'Config/hot_od.sqlite');
     return(Connection);
 }
 
@@ -24,3 +24,5 @@ Number = 3:6;
 Content = data.frame(Name, Number);
 
 dbWriteTable(conn = Connection, name = 'Content', value = Content);
+
+print('date');
