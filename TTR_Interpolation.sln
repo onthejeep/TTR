@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.27004.2006
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{DA7A21FA-8162-4350-AD77-A8D1B671F3ED}") = "TTR_Interpolation", "TTR_Interpolation\TTR_Interpolation.rxproj", "{5D71DAB1-67EA-4764-9F7A-833D1A8B7D42}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{5D71DAB1-67EA-4764-9F7A-833D1A8B7D42}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5D71DAB1-67EA-4764-9F7A-833D1A8B7D42}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5D71DAB1-67EA-4764-9F7A-833D1A8B7D42}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5D71DAB1-67EA-4764-9F7A-833D1A8B7D42}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {FFD08FCD-7167-491F-8532-2734B45B30C3}
+	EndGlobalSection
+EndGlobal
