@@ -1,49 +1,52 @@
 
 
-MinMaxScaler.Transform = function(input, scaler)
+MinMaxScaler.Transform = function(x, scaler)
 {
-    Scaled = (input - scaler$Min) / scaler$Range;
+    Scaled = scaler$TransformRange * (x - scaler$Min) / scaler$Range + scaler$TransformMin;
 }
 
-MinMaxScaler = function(input)
+MinMaxScaler = function(x, range = c(-1, 1))
 {
-    MinValue = min(input);
-    MaxValue = max(input);
+    MinValue = min(x);
+    MaxValue = max(x);
 
     Scaler = list();
     Scaler$Min = MinValue;
     Scaler$Max = MaxValue;
     Scaler$Range = MaxValue - MinValue;
+    Scaler$TransformMin = range[1];
+    Scaler$TransformMax = range[2];
+    Scaler$TransformRange = range[2] - range[1];
     return(Scaler);
 }
 
-MinMaxScaler.Inverse = function(input, scaler)
+MinMaxScaler.Inverse = function(x, scaler)
 {
-    Scaled = input * scaler$Range + scaler$Min;
+    Scaled = (x - scaler$TransformMin) * scaler$Range / scaler$TransformRange + scaler$Min;
 }
 
-NormalScaler = function(input)
+NormalScaler = function(x)
 {
-    Avg = mean(input);
-    Std = sd(input);
+    Avg = mean(x);
+    Std = sd(x);
     Scaler = list();
     Scaler$Mean = Avg;
     Scaler$Std = Std;
     return(Scaler);
 }
-NormalScaler.Transform = function(input, scaler)
+NormalScaler.Transform = function(x, scaler)
 {
-    Scaled = (input - scaler$Mean) / scaler$Std;
+    Scaled = (x - scaler$Mean) / scaler$Std;
 }
-NormalScaler.Inverse = function(input, scaler)
+NormalScaler.Inverse = function(x, scaler)
 {
-    Scaled = input * scaler$Std + scaler$Mean;
+    Scaled = x * scaler$Std + scaler$Mean;
 }
 
-RobustScaler = function(input, quantile.range = c(0.25, 0.75))
+RobustScaler = function(x, quantile.range = c(0.25, 0.75))
 {
-    MinValue = quantile(input, quantile.range[1]);
-    MaxValue = quantile(input, quantile.range[2]);
+    MinValue = quantile(x, quantile.range[1]);
+    MaxValue = quantile(x, quantile.range[2]);
     Scaler = list();
     Scaler$Min = MinValue;
     Scaler$Max = MaxValue;
@@ -51,19 +54,19 @@ RobustScaler = function(input, quantile.range = c(0.25, 0.75))
     Scaler$QuantileRange = quantile.range;
     return(Scaler);
 }
-RobustScaler.Transform = function(input, scaler)
+RobustScaler.Transform = function(x, scaler)
 {
-    Scaled = (input - scaler$Min) / scaler$Range;
+    Scaled = (x - scaler$Min) / scaler$Range;
 }
-RobustScaler.Inverse = function(input, scaler)
+RobustScaler.Inverse = function(x, scaler)
 {
-    Scaled = input * scaler$Range + scaler$Min;
+    Scaled = x * scaler$Range + scaler$Min;
 }
 
-#A = c(-99, 1:30, 99);
+#A = c(1:30);
 
-#A.MinMaxScaler = RobustScaler(A);
-#A.Transform = RobustScaler.Transform(A, A.MinMaxScaler);
-#A.Inverse = RobustScaler.Inverse(A.Transform, A.MinMaxScaler);
+#A.MinMaxScaler = MinMaxScaler(A, range = c(-2, 2));
+#A.Transform = MinMaxScaler.Transform(A, A.MinMaxScaler);
+#A.Inverse = MinMaxScaler.Inverse(A.Transform, A.MinMaxScaler);
 #print(A.Transform);
 #print(A.Inverse);

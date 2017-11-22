@@ -17,8 +17,14 @@ PSO.InitializeVelocity = function(generation)
         Velocity.Solution = list();
         for (j in 1:length(SingleSolutionStructure))
         {
-            Velocity.Solution[[j]] =
-                matrix(0, nrow = nrow(SingleSolutionStructure[[j]]), ncol = ncol(SingleSolutionStructure[[j]]));
+            NumRow = nrow(SingleSolutionStructure[[j]]$Weight);
+            NumCol = ncol(SingleSolutionStructure[[j]]$Weight);
+
+            Combo = list();
+            Combo$Weight = matrix(0, nrow = NumRow, ncol = NumCol);
+            Combo$Connectivity = matrix(0, nrow = NumRow, ncol = NumCol);
+
+            Velocity.Solution[[j]] = Combo;
         }
         Velocity.Generation[[i]] = Velocity.Solution;
     }
@@ -45,8 +51,11 @@ PSO.InitializeSolution = function(nnStructure)
     {
         NumRow = nnStructure[i];
         NumCol = nnStructure[i + 1];
-        InitialSolution[[i]] = matrix(runif(NumRow * NumCol, min = -3, max = 3),
-            nrow = NumRow, ncol = NumCol);
+
+        Combo = list();
+        Combo$Weight = matrix(runif(NumRow * NumCol, min = -6, max = 6), nrow = NumRow, ncol = NumCol);
+        Combo$Connectivity = matrix(1, nrow = NumRow, ncol = NumCol);
+        InitialSolution[[i]] = Combo;
     }
     return(InitialSolution);
 }
@@ -59,15 +68,13 @@ PSO.EvaluateSolution = function(input, singleSolution)
     Result = input;
     NumHiddenLayer = length(singleSolution) - 1;
 
-    # Shu's comments:
-    # After testing different activation functions, the logistic function performs best with other parameters under control
     for (i in 1:NumHiddenLayer)
     {
-        Result = Result %*% singleSolution[[i]];
+        Result = Result %*% (singleSolution[[i]]$Weight * singleSolution[[i]]$Connectivity);
         Result = apply(Result, c(1, 2), FUN = Activation.Logistic);
     }
     
-    Result = Result %*% singleSolution[[NumHiddenLayer + 1]];
+    Result = Result %*% (singleSolution[[NumHiddenLayer + 1]]$Weight * singleSolution[[NumHiddenLayer + 1]]$Connectivity);
     Result = apply(Result, c(1, 2), FUN = Activation.Logistic);
     
     return(Result);
@@ -117,7 +124,8 @@ PSO.BestFitness = function(sortedFitness)
     return(sortedFitness[1]);
 }
 
-PSO.NewGeneration.Parallel = function(originalGen, velocity, inertiaWeight, globalBestSolution, globalBestFitness, input, output)
+PSO.NewGeneration.Parallel = function(originalGen, velocity, inertiaWeight, inertiaConnectivity,
+                                      globalBestSolution, globalBestFitness, input, output)
 {
     NumSolution = length(originalGen);
 
@@ -128,7 +136,7 @@ PSO.NewGeneration.Parallel = function(originalGen, velocity, inertiaWeight, glob
     CurrentBestFitness = PSO.BestFitness(SortedFitness$x);
 
     # Parallel computing - parameter setup
-    ParallelComputingSplit = PSO.Isolation.ParameterSetup(originalGen, velocity, inertiaWeight,
+    ParallelComputingSplit = PSO.Isolation.ParameterSetup(originalGen, velocity, inertiaWeight, inertiaConnectivity,
         CurrentBestSolution, globalBestSolution);
     # Parallel computing - calcualtion
     SplitResult = parLapply(GlobalLocalCluster, X = ParallelComputingSplit, fun = PSO.Isolation.ParallelComputing);
@@ -159,7 +167,8 @@ PSO.NewGeneration.Parallel = function(originalGen, velocity, inertiaWeight, glob
     return(Result);
 }
 
-PSO.Isolation.ParameterSetup = function(originalGen, velocity, inertiaWeight, currentBestSolution, globalBestSolution)
+PSO.Isolation.ParameterSetup = function(originalGen, velocity, inertiaWeight, inertiaConnectivity,
+                                        currentBestSolution, globalBestSolution)
 {
     ParallelComputingSplit = list();
     NumSolution = length(originalGen);
@@ -171,6 +180,7 @@ PSO.Isolation.ParameterSetup = function(originalGen, velocity, inertiaWeight, cu
         Split$Origin.Solution = originalGen[[i]];
         Split$Origin.Velocity4Solution = velocity[[i]];
         Split$InertiaWeight = inertiaWeight;
+        Split$InertiaConnectivity = inertiaConnectivity;
         Split$CurrentBestSolution = currentBestSolution;
         Split$GlobalBestSolution = globalBestSolution;
 
@@ -186,6 +196,7 @@ PSO.Isolation.ParallelComputing = function(paras)
     #paras$Origin.Solution
     #paras$Origin.Velocity4Solution
     #paras$InertiaWeight
+    #paras$InertiaConnectivity
     #paras$CurrentBestSolution
     #paras$GlobalBestSolution
 
@@ -198,22 +209,41 @@ PSO.Isolation.ParallelComputing = function(paras)
 
     for (j in 1:length(paras$Origin.Solution))
     {
-        NumRow = nrow(paras$Origin.Solution[[j]]);
-        NumCol = ncol(paras$Origin.Solution[[j]]);
+        NumRow = nrow(paras$Origin.Solution[[j]]$Weight);
+        NumCol = ncol(paras$Origin.Solution[[j]]$Weight);
 
-        Velocity.Solution[[j]] = paras$InertiaWeight * paras$Origin.Velocity4Solution[[j]] +
-                    C1 * matrix(data = runif(n = NumRow * NumCol), nrow = NumRow, ncol = NumCol) * (paras$CurrentBestSolution[[j]] - paras$Origin.Solution[[j]]) +
-                    C2 * matrix(data = runif(n = NumRow * NumCol), nrow = NumRow, ncol = NumCol) * (paras$GlobalBestSolution[[j]] - paras$Origin.Solution[[j]]);
+        VelCombo = list();
+        VelCombo$Weight = paras$InertiaWeight * paras$Origin.Velocity4Solution[[j]]$Weight +
+                    C1 * matrix(data = runif(n = NumRow * NumCol), nrow = NumRow, ncol = NumCol) * (paras$CurrentBestSolution[[j]]$Weight - paras$Origin.Solution[[j]]$Weight) +
+                    C2 * matrix(data = runif(n = NumRow * NumCol), nrow = NumRow, ncol = NumCol) * (paras$GlobalBestSolution[[j]]$Weight - paras$Origin.Solution[[j]]$Weight);
 
-        Velocity.Solution[[j]] = apply(Velocity.Solution[[j]], c(1, 2), FUN = Threshold.Velocity, 2);
+        VelCombo$Weight = apply(VelCombo$Weight, c(1, 2), FUN = Threshold.Velocity, 4);
 
-        UpdatedSolution[[j]] = paras$Origin.Solution[[j]] + Velocity.Solution[[j]];
+        VelCombo$Connectivity = paras$Origin.Velocity4Solution[[j]]$Connectivity +
+                    C1 * matrix(data = runif(n = NumRow * NumCol), nrow = NumRow, ncol = NumCol) * (paras$CurrentBestSolution[[j]]$Connectivity - paras$Origin.Solution[[j]]$Connectivity) +
+                    C2 * matrix(data = runif(n = NumRow * NumCol), nrow = NumRow, ncol = NumCol) * (paras$GlobalBestSolution[[j]]$Connectivity - paras$Origin.Solution[[j]]$Connectivity);
+
+        VelCombo$Connectivity = apply(VelCombo$Connectivity, c(1, 2), FUN = Threshold.Velocity, 6);
+
+        Velocity.Solution[[j]] = VelCombo;
+
+        SolCombo = list();
+        SolCombo$Weight = paras$Origin.Solution[[j]]$Weight + VelCombo$Weight;
+        SolCombo$Connectivity = apply(VelCombo$Connectivity, c(1, 2), FUN = PSO.UpdateBinary);
+        
+        UpdatedSolution[[j]] = SolCombo;
     }
 
     Result = list();
     Result$Velocity.Solution = Velocity.Solution;
     Result$UpdatedSolution = UpdatedSolution;
     return(Result);
+}
+
+PSO.UpdateBinary = function(x)
+{
+    Transform = Activation.Logistic(x);
+    ifelse(runif(n = 1) < Transform, return(1), return(0));
 }
 
 PSO.NewGeneration = function(originalGen, velocity, inertiaWeight, globalBestSolution, globalBestFitness, input, output)
@@ -236,14 +266,25 @@ PSO.NewGeneration = function(originalGen, velocity, inertiaWeight, globalBestSol
         Velocity.Solution = list();
         for (j in 1: length(SingleSolution))
         {
-            NumRow = nrow(SingleSolution[[j]]);
-            NumCol = ncol(SingleSolution[[j]]);
+            NumRow = nrow(SingleSolution[[j]]$Weight);
+            NumCol = ncol(SingleSolution[[j]]$Weight);
 
-            Velocity.Solution[[j]] = inertiaWeight * velocity[[i]][[j]] +
-                    C1 * matrix(data = runif(n = NumRow * NumCol), nrow = NumRow, ncol = NumCol) * (CurrentBestSolution[[j]] - SingleSolution[[j]]) +
-                    C2 * matrix(data = runif(n = NumRow * NumCol), nrow = NumRow, ncol = NumCol) * (globalBestSolution[[j]] - SingleSolution[[j]]);
+            Combo = list();
 
-            originalGen[[i]][[j]] = originalGen[[i]][[j]] + Velocity.Solution[[j]];
+            Combo$Weight = inertiaWeight * velocity[[i]][[j]]$Weight +
+                    C1 * matrix(data = runif(n = NumRow * NumCol), nrow = NumRow, ncol = NumCol) * (CurrentBestSolution[[j]]$Weight - SingleSolution[[j]]$Weight) +
+                    C2 * matrix(data = runif(n = NumRow * NumCol), nrow = NumRow, ncol = NumCol) * (globalBestSolution[[j]]$Weight - SingleSolution[[j]]$Weight);
+
+            Combo$Connectivity = inertiaWeight * velocity[[i]][[j]]$Connectivity +
+                    C1 * matrix(data = runif(n = NumRow * NumCol), nrow = NumRow, ncol = NumCol) * (CurrentBestSolution[[j]]$Connectivity - SingleSolution[[j]]$Connectivity) +
+                    C2 * matrix(data = runif(n = NumRow * NumCol), nrow = NumRow, ncol = NumCol) * (globalBestSolution[[j]]$Connectivity - SingleSolution[[j]]$Connectivity);
+
+            Combo$Connectivity = apply(Combo$Connectivity, c(1, 2), FUN = Activation.Binary, 0);
+
+            Velocity.Solution[[j]] = Combo;
+
+            originalGen[[i]][[j]]$Weight = originalGen[[i]][[j]]$Weight + Velocity.Solution[[j]]$Weight;
+            originalGen[[i]][[j]]$Connectivity = originalGen[[i]][[j]]$Connectivity + Velocity.Solution[[j]]$Connectivity;
         }
 
         Velocity.Generation[[i]] = Velocity.Solution;
@@ -270,10 +311,10 @@ PSO.NewGeneration = function(originalGen, velocity, inertiaWeight, globalBestSol
 
 PSO.Execute = function(input, output)
 {
-    NNStructure = c(ncol(input), 16, 8, 8, ncol(output));
+    NNStructure = c(ncol(input), 16, 16, 8, ncol(output));
 
     TrackBestFitness = c();
-    InitialGeneration = PSO.InitializeGeneration(numSolution = 48, nnStructure = NNStructure);
+    InitialGeneration = PSO.InitializeGeneration(numSolution = 90, nnStructure = NNStructure);
     SortedFitness = PSO.EvaluateGeneration(InitialGeneration, input, output);
     SortedGeneration = PSO.SortGeneration(InitialGeneration, SortedFitness$ix);
 
@@ -281,16 +322,17 @@ PSO.Execute = function(input, output)
     GlobalBestFitness = PSO.BestFitness(SortedFitness$x);
     TrackBestFitness = c(TrackBestFitness, GlobalBestFitness);
 
-    NumIteration = 200;
+    NumIteration = 2000;
     Velocity = PSO.InitializeVelocity(InitialGeneration);
-    InertiaWeight = seq(from = 0.5, to = 0.0001, length = NumIteration);
+    InertiaWeight = seq(from = 0.5, to = 0.1, length = NumIteration);
+    InertiaConnectivity = seq(from = 0.01, to = 0.01, length = NumIteration);
 
     for (i in 1:NumIteration)
     {
         #Result = PSO.NewGeneration(InitialGeneration, Velocity, InertiaWeight[i],
-        #GlobalBestSolution, GlobalBestFitness, input, output);
+                #GlobalBestSolution, GlobalBestFitness, input, output);
 
-        Result = PSO.NewGeneration.Parallel(InitialGeneration, Velocity, InertiaWeight[i],
+        Result = PSO.NewGeneration.Parallel(InitialGeneration, Velocity, InertiaWeight[i], InertiaConnectivity[i],
             GlobalBestSolution, GlobalBestFitness, input, output);
 
         GlobalBestSolution = Result$GlobalBestSolution;
@@ -437,6 +479,7 @@ PSO.UnitTest3 = function()
     #Sub.Grid = cbind(Sub.Grid, ColRow);
 
     load('Sub.Grid.rdata');
+    SelectedColumn = c('ti_18_avg');
 
     Distance = abs(Sub.Grid[, 'Col'] - 45) + abs(Sub.Grid[, 'Row'] - 47);
     Dis.Scaler = MinMaxScaler(Distance, range = c(0, 1));
@@ -453,7 +496,8 @@ PSO.UnitTest3 = function()
 
     Input = cbind(Col.Transform, Row.Transform, Dis.Transform);
     #Output = matrix(data = Value.Transform, nrow = length(Value.Transform));
-    Output = cbind(Avg.Transform);#, Median.Transform
+    Output = cbind(Avg.Transform);
+    #, Median.Transform
 
     Result = PSO.Execute(Input, Output);
     P1 = ggplot() +
@@ -467,17 +511,24 @@ PSO.UnitTest3 = function()
 
     Avg.Difference = Avg.Inverse - Sub.Grid[, 'ti_18_avg'];
     #Median.Difference = Median.Inverse - Sub.Grid[, 'ti_18_p90'];
-    Comparison = cbind(Sub.Grid[, SelectedColumn], Avg.Difference);#, Median.Difference
+    Comparison = cbind(Sub.Grid[, SelectedColumn], Avg.Difference);
+    #, Median.Difference
     print(Comparison);
 
     print(sprintf('BestFitness = %0.4f; sum(abs(Avg.Difference)) = %0.4f',
         tail(Result$TrackBestFitness, n = 1)[2], sum(abs(Avg.Difference))));
-}
-
-Threshold.Velocity = function(x, threshold)
-{
-    ifelse(x <= threshold, return(x), return(threshold));
+    print(Result$BestSolution);
 }
 
 GlobalFunctions = ls(.GlobalEnv);
-clusterExport(GlobalLocalCluster, varlist = list(GlobalFunctions, 'Threshold.Velocity'));
+clusterExport(GlobalLocalCluster, list(GlobalFunctions, 'Threshold.Velocity', 'PSO.UpdateBinary',
+    'Activation.Logistic'));
+
+#set.seed(49);
+#Input = matrix(sample.int(5, size = 12, replace = T), nrow = 4, ncol = 3);
+#A = matrix(sample.int(20, size = 12, replace = T), nrow = 3, ncol = 4);
+#Connectivity = matrix(sample(c(0, 1), size = 12, replace = T), nrow = 3);
+
+#Input %*% (A * Connectivity
+
+# save(file = 'Sub.Grid.rdata', Sub.Grid)
