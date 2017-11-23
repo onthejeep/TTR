@@ -1,7 +1,11 @@
-library(lubridate)
-library(RODBC);
-library(RSQLite);
-setwd('D:/MySVN/UA-Research/Dr Xia/R Code/TTR_Interpolation/TTR_Interpolation');
+
+
+Parse.Structure = function(structure = '32,32,16,8')
+{
+    SplitStr = strsplit(structure, split = ',', fixed = TRUE);
+    Structure = as.numeric(unlist(SplitStr));
+    return(Structure);
+}
 
 Find.HotDestination = function(sqlite)
 {

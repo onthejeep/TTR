@@ -1,5 +1,16 @@
 
 
+# This page of code implements scalers, including
+# MinMaxScaler
+# NormalScaler
+# RobustScaler
+
+# Each scaler has three functions, including
+# setup scaler
+# data transform 
+# data inverse
+
+
 MinMaxScaler.Transform = function(x, scaler)
 {
     Scaled = scaler$TransformRange * (x - scaler$Min) / scaler$Range + scaler$TransformMin;
