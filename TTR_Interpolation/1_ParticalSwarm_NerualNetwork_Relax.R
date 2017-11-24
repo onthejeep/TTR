@@ -67,7 +67,6 @@ PSO.PickUpBestInitialGeneration = function(input, output, numSolution, nnStructu
     SplitResult = parLapply(GlobalLocalCluster, X = ParallelComputingSplit, fun = PSO.InitialGeneration.ParallelComputing);
 
     Fitness = unlist(SplitResult);
-    print(Fitness);
     BestFitness = min(Fitness);
     BestFitness.Index = which.min(Fitness);
 
@@ -142,7 +141,7 @@ PSO.Prediction2Classification = function(prediction)
 PSO.EvaluateError = function(prediction, output)
 {
     # root-mean-square error
-    Error = sqrt(sum((prediction - output) ^ 2) / nrow(prediction));
+    Error = sqrt(sum((prediction - output) ^ 2) / (nrow(prediction) * ncol(prediction)));
     return(Error);
 }
 
@@ -337,12 +336,42 @@ PSO.Execute = function(input, output)
     }
 
     TrackBestFitness = as.data.frame(cbind(1:length(TrackBestFitness), TrackBestFitness));
-    colnames(TrackBestFitness) = c('Iteration', 'Fitness');
+    colnames(TrackBestFitness) = c('Iteration', 'TrainingError');
 
     Result = list();
     Result$TrackBestFitness = TrackBestFitness;
     Result$BestSolution = GlobalBestSolution;
     return(Result);
+}
+
+Bagging.NerualNetwork = function(input, output)
+{
+    NumBoot = as.numeric(Config$model$bagging$numBootstrap$text);
+    Bagging.TrainedNN = list();
+
+    for (i in 1: NumBoot)
+    {
+        Index = sample(1:nrow(input), size = nrow(input), replace = T);
+        BootInput = input[Index,];
+        BootOutput = as.matrix(output[Index,], nrow = nrow(output));
+
+        Bagging.TrainedNN[[i]] = PSO.Execute(BootInput, BootOutput);
+    }
+
+    save(file = 'Result/Bagging.TrainedNN.rdata', Bagging.TrainedNN);
+    return(Bagging.TrainedNN);
+}
+
+Bagging.NerualNetwork.Prediction = function(input, bagging.TrainedNN)
+{
+    BootPrediction = PSO.EvaluateSolution(input, bagging.TrainedNN[[1]]$BestSolution);
+
+    for (i in 2:length(bagging.TrainedNN))
+    {
+        Prediction = PSO.EvaluateSolution(input, bagging.TrainedNN[[i]]$BestSolution);
+        BootPrediction = BootPrediction + Prediction;
+    }
+    return(BootPrediction / length(bagging.TrainedNN));
 }
 
 PSO.UnitTest1 = function()
@@ -496,8 +525,7 @@ PSO.UnitTest3 = function()
 
     # plot tracked fitness 
     P1 = ggplot() +
-        geom_line(data = TrainedNeuralNetwork$TrackBestFitness, aes(x = Iteration, y = Fitness), col = 'darkblue', size = 2) +
-        ggtitle('Best fitness');
+        geom_line(data = TrainedNeuralNetwork$TrackBestFitness, aes(x = Iteration, y = TrainingError), col = 'darkblue', size = 2);
     print(P1);
 
     # predict values
@@ -513,6 +541,48 @@ PSO.UnitTest3 = function()
 
     print(sprintf('BestFitness = %0.4f; sum(abs(Avg.Difference)) = %0.4f',
         tail(TrainedNeuralNetwork$TrackBestFitness, n = 1)[2], sum(abs(Avg.Difference))));
+
+    EndTime = now();
+    print(sprintf('running time = %0.2f minutes', difftime(EndTime, StartTime, units = 'mins')));
+}
+
+PSO.UnitTest4 = function()
+{
+    StartTime = now();
+
+    # setup data
+    load('Sub.Grid.rdata');
+    SelectedColumn = c('ti_18_avg');
+
+    Distance = abs(Sub.Grid[, 'Col'] - 45) + abs(Sub.Grid[, 'Row'] - 47);
+    Dis.Scaler = MinMaxScaler(Distance, range = c(0, 1));
+    Dis.Transform = MinMaxScaler.Transform(Distance, Dis.Scaler);
+
+    Col.Scaler = MinMaxScaler(Sub.Grid[, 'Col'], range = c(0, 1));
+    Col.Transform = MinMaxScaler.Transform(Sub.Grid[, 'Col'], Col.Scaler);
+    Row.Scaler = MinMaxScaler(Sub.Grid[, 'Row'], range = c(0, 1));
+    Row.Transform = MinMaxScaler.Transform(Sub.Grid[, 'Row'], Row.Scaler);
+    Avg.Scaler = MinMaxScaler(Sub.Grid[, 'ti_18_avg'], range = c(0, 1));
+    Avg.Transform = MinMaxScaler.Transform(Sub.Grid[, 'ti_18_avg'], Avg.Scaler);
+    Median.Scaler = MinMaxScaler(Sub.Grid[, 'ti_18_p90'], range = c(0, 1));
+    Median.Transform = MinMaxScaler.Transform(Sub.Grid[, 'ti_18_p90'], Median.Scaler);
+
+    Input = cbind(Col.Transform, Row.Transform, Dis.Transform);
+    Output = cbind(Avg.Transform);
+
+    # train neural network
+    Boot.TrainedNeuralNetwork = Bagging.NerualNetwork(Input, Output);
+
+    # predict values
+    Prediction = Bagging.NerualNetwork.Prediction(Input, Boot.TrainedNeuralNetwork);
+
+    # value transform
+    Avg.Inverse = MinMaxScaler.Inverse(Prediction[, 1], Avg.Scaler);
+
+    # comparison: groud truth vs. prediction
+    Avg.Difference = Avg.Inverse - Sub.Grid[, 'ti_18_avg'];
+    Comparison = cbind(Sub.Grid[, SelectedColumn], Avg.Difference);
+    print(Comparison);
 
     EndTime = now();
     print(sprintf('running time = %0.2f minutes', difftime(EndTime, StartTime, units = 'mins')));

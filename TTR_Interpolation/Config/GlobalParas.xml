@@ -7,7 +7,7 @@
     <neuralnetwork>
       <numsolution default = '114'>6</numsolution>
       <initialgeneration>
-        <maxtry default = '100'>13</maxtry>
+        <maxtry default = '100'>5</maxtry>
         <initialerror default = '0.14'>0.14</initialerror>
       </initialgeneration>
       <solution>
@@ -33,7 +33,7 @@
       <velocitythreshold default = '6'>6</velocitythreshold>
     </dpso>
     <bagging>
-      <numBootstrap default = '100'>100</numBootstrap>
+      <numBootstrap default = '100'>5</numBootstrap>
     </bagging>
   </model>
 </config>
