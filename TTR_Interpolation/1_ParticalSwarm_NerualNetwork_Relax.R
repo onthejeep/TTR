@@ -344,7 +344,7 @@ PSO.Execute = function(input, output)
     return(Result);
 }
 
-Bagging.NerualNetwork = function(input, output)
+Train.Bagging.NerualNetwork = function(input, output)
 {
     NumBoot = as.numeric(Config$model$bagging$numBootstrap$text);
     Bagging.TrainedNN = list();
@@ -366,9 +366,13 @@ Bagging.NerualNetwork.Prediction = function(input, bagging.TrainedNN)
 {
     BootPrediction = PSO.EvaluateSolution(input, bagging.TrainedNN[[1]]$BestSolution);
 
-    for (i in 2:length(bagging.TrainedNN))
+    for (i in 1:length(bagging.TrainedNN))
     {
         Prediction = PSO.EvaluateSolution(input, bagging.TrainedNN[[i]]$BestSolution);
+        if (i == 1)
+        {
+            BootPrediction = Prediction;
+        }
         BootPrediction = BootPrediction + Prediction;
     }
     return(BootPrediction / length(bagging.TrainedNN));
@@ -571,7 +575,7 @@ PSO.UnitTest4 = function()
     Output = cbind(Avg.Transform);
 
     # train neural network
-    Boot.TrainedNeuralNetwork = Bagging.NerualNetwork(Input, Output);
+    Boot.TrainedNeuralNetwork = Train.Bagging.NerualNetwork(Input, Output);
 
     # predict values
     Prediction = Bagging.NerualNetwork.Prediction(Input, Boot.TrainedNeuralNetwork);

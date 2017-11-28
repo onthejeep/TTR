@@ -9,7 +9,7 @@
     <Platform Condition="'$(Platform)' == ''">AnyCPU</Platform>
   </PropertyGroup>
   <PropertyGroup>
-    <StartupFile>1_ParticalSwarm_NerualNetwork_Relax.R</StartupFile>
+    <StartupFile>0_Load2Sqlite.R</StartupFile>
   </PropertyGroup>
   <ProjectExtensions>
     <VisualStudio>

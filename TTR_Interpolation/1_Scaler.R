@@ -11,12 +11,12 @@
 # data inverse
 
 
-MinMaxScaler.Transform = function(x, scaler)
+MinMaxScaler.Transform = function(x, scaler))
 {
     Scaled = scaler$TransformRange * (x - scaler$Min) / scaler$Range + scaler$TransformMin;
 }
 
-MinMaxScaler = function(x, range = c(-1, 1))
+MinMaxScaler = function(x, range = c(0, 1))
 {
     MinValue = min(x);
     MaxValue = max(x);
