@@ -1,7 +1,15 @@
+# hard-coded parameter version
+
+
+library(ggplot2)
+library(lubridate)
+library(rgdal)
 
 source('0_Utility.R');
 source('1_Scaler.R');
 source('1_ActivationFunction.R');
+
+setwd('D:/MySVN/UA-Research/Dr Xia/R Code/TTR_Interpolation/TTR_Interpolation')
 
 PSO.InitializeVelocity = function(generation)
 {
@@ -12,10 +20,8 @@ PSO.InitializeVelocity = function(generation)
         Velocity.Solution = list();
         for (j in 1:length(SingleSolutionStructure))
         {
-            NumRow = nrow(SingleSolutionStructure[[j]]);
-            NumCol = ncol(SingleSolutionStructure[[j]]);
-
-            Velocity.Solution[[j]] = matrix(0, nrow = NumRow, ncol = NumCol);
+            Velocity.Solution[[j]] =
+                matrix(0, nrow = nrow(SingleSolutionStructure[[j]]), ncol = ncol(SingleSolutionStructure[[j]]));
         }
         Velocity.Generation[[i]] = Velocity.Solution;
     }
@@ -37,71 +43,15 @@ PSO.InitializeSolution = function(nnStructure)
     # example: c(3, 7, 2) = (numInput = 3, hiddenNeuron = 7, numOutput = 2)
     # example: c(3, 7, 4, 2) = (numInput = 3, hidden1 = 7, hidden2 = 4, numOutput = 2)
 
-    WeightMin = as.numeric(Config$model$neuralnetwork$solution$initialweight$min$text);
-    WeightMax = as.numeric(Config$model$neuralnetwork$solution$initialweight$max$text);
-
     InitialSolution = list();
     for (i in 1:(length(nnStructure) - 1))
     {
         NumRow = nnStructure[i];
         NumCol = nnStructure[i + 1];
-
-        InitialSolution[[i]] = matrix(runif(NumRow * NumCol, min = WeightMin, max = WeightMax), nrow = NumRow, ncol = NumCol);
+        InitialSolution[[i]] = matrix(runif(NumRow * NumCol, min = -5, max = 5),
+            nrow = NumRow, ncol = NumCol);
     }
     return(InitialSolution);
-}
-
-PSO.PickUpBestInitialGeneration = function(input, output, numSolution, nnStructure,
-                                           errorThreshold = 0.14, maxTry = 100)
-{
-    # Parallel computing - parameter setup
-    ParallelComputingSplit = PSO.InitialGeneration.ParameterSetup(input, output, nnStructure, maxTry);
-    # Parallel computing - calcualtion
-    SplitResult = parLapply(GlobalLocalCluster, X = ParallelComputingSplit, fun = PSO.InitialGeneration.ParallelComputing);
-
-    Fitness = unlist(SplitResult);
-    BestFitness = min(Fitness);
-    BestFitness.Index = which.min(Fitness);
-
-    if (BestFitness <= errorThreshold)
-    {
-        print(sprintf('The error threshold is reached at (%0.4f)', BestFitness));
-    }
-    else
-    {
-        print(sprintf('The lowest error is (%0.4f)', BestFitness));
-    }
-
-    return(ParallelComputingSplit[[BestFitness.Index]]$Generation);
-    
-}
-
-PSO.InitialGeneration.ParameterSetup = function(input, output, nnStructure, maxTry = 100)
-{
-    ParallelComputingSplit = list();
-
-    NumSolution = as.numeric(Config$model$neuralnetwork$numsolution$text);
-
-    for (i in 1:maxTry)
-    {
-        Split = list();
-        Split$Index = i;
-        Split$Input = input;
-        Split$Output = output;
-        Split$Generation = PSO.InitializeGeneration(numSolution = NumSolution, nnStructure);
-
-        ParallelComputingSplit[[i]] = Split;
-    }
-
-    return(ParallelComputingSplit);
-}
-
-PSO.InitialGeneration.ParallelComputing = function(paras)
-{
-    SortedFitness = PSO.EvaluateGeneration(paras$Generation, paras$Input, paras$Output);
-    BestFitness = SortedFitness$x[1];
-
-    return(BestFitness);
 }
 
 PSO.EvaluateSolution = function(input, singleSolution)
@@ -112,32 +62,17 @@ PSO.EvaluateSolution = function(input, singleSolution)
     Result = input;
     NumHiddenLayer = length(singleSolution) - 1;
 
+    # Shu's comments:
+    # After testing different activation functions, the logistic function performs best with other parameters under control
     for (i in 1:NumHiddenLayer)
     {
         Result = Result %*% singleSolution[[i]];
-        #Result = apply(Result, c(1, 2), FUN = Activation.Logistic);
-        Result = PSO.Apply.Alternative(Result);
+        Result = apply(Result, c(1, 2), FUN = Activation.Logistic);
     }
     
     Result = Result %*% singleSolution[[NumHiddenLayer + 1]];
-    #Result = apply(Result, c(1, 2), FUN = Activation.Logistic);
-    Result = PSO.Apply.Alternative(Result);
+    Result = apply(Result, c(1, 2), FUN = Activation.Logistic);
     
-    return(Result);
-}
-
-PSO.Apply.Alternative = function(data)
-{
-    NumRow = nrow(data);
-    NumCol = ncol(data);
-    Result = matrix(0, nrow = NumRow, ncol = NumCol);
-    for (i in 1: NumRow)
-    {
-        for (j in 1:NumCol)
-        {
-            Result[i, j] = Activation.Logistic(data[i, j]);
-        }
-    }
     return(Result);
 }
 
@@ -151,7 +86,10 @@ PSO.Prediction2Classification = function(prediction)
 PSO.EvaluateError = function(prediction, output)
 {
     # root-mean-square error
-    Error = sqrt(sum((prediction - output) ^ 2) / (nrow(prediction) * ncol(prediction)));
+    Error = sqrt(sum((prediction - output) ^ 2) / nrow(prediction));
+
+    # 0.5 * (DesiredData ¨C CalculatedData)^2
+    # Error = 0.5 * sum((prediction - output) ^ 2);
     return(Error);
 }
 
@@ -182,8 +120,7 @@ PSO.BestFitness = function(sortedFitness)
     return(sortedFitness[1]);
 }
 
-PSO.NewGeneration.Parallel = function(originalGen, velocity, inertiaWeight,
-                                      globalBestSolution, globalBestFitness, input, output)
+PSO.NewGeneration.Parallel = function(originalGen, velocity, inertiaWeight, globalBestSolution, globalBestFitness, input, output)
 {
     NumSolution = length(originalGen);
 
@@ -225,8 +162,7 @@ PSO.NewGeneration.Parallel = function(originalGen, velocity, inertiaWeight,
     return(Result);
 }
 
-PSO.Isolation.ParameterSetup = function(originalGen, velocity, inertiaWeight,
-                                        currentBestSolution, globalBestSolution)
+PSO.Isolation.ParameterSetup = function(originalGen, velocity, inertiaWeight, currentBestSolution, globalBestSolution)
 {
     ParallelComputingSplit = list();
     NumSolution = length(originalGen);
@@ -260,25 +196,21 @@ PSO.Isolation.ParallelComputing = function(paras)
     Velocity.Solution = list();
     UpdatedSolution = list();
 
-    C1 = as.numeric(Config$model$pso$C1$text);
-    C2 = as.numeric(Config$model$pso$C2$text);
-
-    VelocityMaxValue = as.numeric(Config$model$pso$velocitythreshold$text);
+    C1 = 1.49445;
+    C2 = 1.49445;
 
     for (j in 1:length(paras$Origin.Solution))
     {
         NumRow = nrow(paras$Origin.Solution[[j]]);
         NumCol = ncol(paras$Origin.Solution[[j]]);
 
-        Weight = paras$InertiaWeight * paras$Origin.Velocity4Solution[[j]] +
+        Velocity.Solution[[j]] = paras$InertiaWeight * paras$Origin.Velocity4Solution[[j]] +
                     C1 * matrix(data = runif(n = NumRow * NumCol), nrow = NumRow, ncol = NumCol) * (paras$CurrentBestSolution[[j]] - paras$Origin.Solution[[j]]) +
                     C2 * matrix(data = runif(n = NumRow * NumCol), nrow = NumRow, ncol = NumCol) * (paras$GlobalBestSolution[[j]] - paras$Origin.Solution[[j]]);
 
-        
-        Weight = apply(Weight, c(1, 2), FUN = Threshold.Velocity, VelocityMaxValue);
-        Velocity.Solution[[j]] = Weight;
-        
-        UpdatedSolution[[j]] = paras$Origin.Solution[[j]] + Weight;
+        Velocity.Solution[[j]] = apply(Velocity.Solution[[j]], c(1, 2), FUN = Threshold.Velocity, 4);
+
+        UpdatedSolution[[j]] = paras$Origin.Solution[[j]] + Velocity.Solution[[j]];
     }
 
     Result = list();
@@ -287,17 +219,53 @@ PSO.Isolation.ParallelComputing = function(paras)
     return(Result);
 }
 
-PSO.PreventOverflow = function(data, velocityMaxValue)
+PSO.NewGeneration = function(originalGen, velocity, inertiaWeight, globalBestSolution, globalBestFitness, input, output)
 {
-    NumRow = nrow(data);
-    NumCol = ncol(data);
-    Result = matrix(0, nrow = NumRow, ncol = NumCol);
-    for (i in 1:NumRow)
+    NumSolution = length(originalGen);
+
+    SortedFitness = PSO.EvaluateGeneration(originalGen, input, output);
+    SortedOriginalGen = PSO.SortGeneration(originalGen, SortedFitness$ix);
+
+    CurrentBestSolution = PSO.BestSolution(SortedOriginalGen);
+    CurrentBestFitness = PSO.BestFitness(SortedFitness$x);
+
+    C1 = 2;
+    C2 = 2;
+
+    Velocity.Generation = list();
+    for (i in 1:NumSolution)
     {
-        for (j in 1:NumCol)
+        SingleSolution = originalGen[[i]];
+        Velocity.Solution = list();
+        for (j in 1: length(SingleSolution))
         {
-            Result[i, j] = Threshold.Velocity(data[i, j], velocityMaxValue);
+            NumRow = nrow(SingleSolution[[j]]);
+            NumCol = ncol(SingleSolution[[j]]);
+
+            Velocity.Solution[[j]] = inertiaWeight * velocity[[i]][[j]] +
+                    C1 * matrix(data = runif(n = NumRow * NumCol), nrow = NumRow, ncol = NumCol) * (CurrentBestSolution[[j]] - SingleSolution[[j]]) +
+                    C2 * matrix(data = runif(n = NumRow * NumCol), nrow = NumRow, ncol = NumCol) * (globalBestSolution[[j]] - SingleSolution[[j]]);
+
+            originalGen[[i]][[j]] = originalGen[[i]][[j]] + Velocity.Solution[[j]];
         }
+
+        Velocity.Generation[[i]] = Velocity.Solution;
+    }
+
+    Result = list();
+    if (CurrentBestFitness < globalBestFitness)
+    {
+        Result$GlobalBestSolution = CurrentBestSolution;
+        Result$GlobalBestFitness = CurrentBestFitness;
+        Result$OriginalGen = originalGen;
+        Result$Velocity = Velocity.Generation;
+    }
+    else
+    {
+        Result$GlobalBestSolution = globalBestSolution;
+        Result$GlobalBestFitness = globalBestFitness;
+        Result$OriginalGen = originalGen;
+        Result$Velocity = Velocity.Generation;
     }
     return(Result);
 }
@@ -305,22 +273,10 @@ PSO.PreventOverflow = function(data, velocityMaxValue)
 
 PSO.Execute = function(input, output)
 {
+    NNStructure = c(ncol(input), 16, 8, 8, ncol(output));
+
     TrackBestFitness = c();
-
-    NNStructure = Parse.Structure(Config$model$neuralnetwork$structure$text);
-    NNStructure = c(ncol(input), NNStructure, ncol(output));
-
-    NumSolution = as.numeric(Config$model$neuralnetwork$numsolution$text);
-    ErrorThreshold = as.numeric(Config$model$neuralnetwork$initialgeneration$initialerror$text);
-    MaxTry = as.numeric(Config$model$neuralnetwork$initialgeneration$maxtry$text);
-    InitialGeneration = PSO.PickUpBestInitialGeneration(input, output,
-                                                        numSolution = NumSolution,
-                                                        nnStructure = NNStructure,
-                                                        errorThreshold = ErrorThreshold,
-                                                        maxTry = MaxTry);
-
-    #InitialGeneration = PSO.InitializeGeneration(numSolution = NumSolution, nnStructure = NNStructure);
-
+    InitialGeneration = PSO.InitializeGeneration(numSolution = 48, nnStructure = NNStructure);
     SortedFitness = PSO.EvaluateGeneration(InitialGeneration, input, output);
     SortedGeneration = PSO.SortGeneration(InitialGeneration, SortedFitness$ix);
 
@@ -328,17 +284,14 @@ PSO.Execute = function(input, output)
     GlobalBestFitness = PSO.BestFitness(SortedFitness$x);
     TrackBestFitness = c(TrackBestFitness, GlobalBestFitness);
 
-    NumIteration = as.numeric(Config$model$pso$iteration$text);
+    NumIteration = 200;
     Velocity = PSO.InitializeVelocity(InitialGeneration);
-    InertiaWeight = seq(from = as.numeric(Config$model$pso$inertiaweight$from$text),
-                        to = as.numeric(Config$model$pso$inertiaweight$to$text), length = NumIteration);
+    InertiaWeight = seq(from = 0.5, to = 0.0001, length = NumIteration);
 
     for (i in 1:NumIteration)
     {
-        if (i %% 500 == 0)
-        {
-            print(sprintf('Iteration = %04d; Time = %s', i, now()));
-        }
+        #Result = PSO.NewGeneration(InitialGeneration, Velocity, InertiaWeight[i],
+        #GlobalBestSolution, GlobalBestFitness, input, output);
 
         Result = PSO.NewGeneration.Parallel(InitialGeneration, Velocity, InertiaWeight[i],
             GlobalBestSolution, GlobalBestFitness, input, output);
@@ -349,10 +302,13 @@ PSO.Execute = function(input, output)
         Velocity = Result$Velocity;
 
         TrackBestFitness = c(TrackBestFitness, GlobalBestFitness);
+
+        #print(paste(c('global best solution = ', GlobalBestSolution,
+        #'global best fitness = ', GlobalBestFitness), collapse = ' '));
     }
 
     TrackBestFitness = as.data.frame(cbind(1:length(TrackBestFitness), TrackBestFitness));
-    colnames(TrackBestFitness) = c('Iteration', 'TrainingError');
+    colnames(TrackBestFitness) = c('Iteration', 'Fitness');
 
     Result = list();
     Result$TrackBestFitness = TrackBestFitness;
@@ -360,44 +316,8 @@ PSO.Execute = function(input, output)
     return(Result);
 }
 
-Train.Bagging.NerualNetwork = function(input, output)
-{
-    NumBoot = as.numeric(Config$model$bagging$numBootstrap$text);
-    Bagging.TrainedNN = list();
-
-    for (i in 1: NumBoot)
-    {
-        Index = sample(1:nrow(input), size = nrow(input), replace = T);
-        BootInput = input[Index,];
-        BootOutput = as.matrix(output[Index,], nrow = nrow(output));
-
-        Bagging.TrainedNN[[i]] = PSO.Execute(BootInput, BootOutput);
-    }
-
-    save(file = 'Result/Bagging.TrainedNN.rdata', Bagging.TrainedNN);
-    return(Bagging.TrainedNN);
-}
-
-Bagging.NerualNetwork.Prediction = function(input, bagging.TrainedNN)
-{
-    BootPrediction = PSO.EvaluateSolution(input, bagging.TrainedNN[[1]]$BestSolution);
-
-    for (i in 1:length(bagging.TrainedNN))
-    {
-        Prediction = PSO.EvaluateSolution(input, bagging.TrainedNN[[i]]$BestSolution);
-        if (i == 1)
-        {
-            BootPrediction = Prediction;
-        }
-        BootPrediction = BootPrediction + Prediction;
-    }
-    return(BootPrediction / length(bagging.TrainedNN));
-}
-
 PSO.UnitTest1 = function()
 {
-    StartTime = now();
-
     # Input
     Input = matrix(data = c(0.1, 0.1,
     0.2, 0.2,
@@ -433,16 +353,13 @@ PSO.UnitTest1 = function()
     Result = PSO.Execute(Input, Output);
 
     P1 = ggplot() +
-        geom_line(data = Result$TrackBestFitness, aes(x = Iteration, y = TrainingError), col = 'darkblue', size = 2) +
+        geom_line(data = Result$TrackBestFitness, aes(x = Iteration, y = Fitness), col = 'darkblue', size = 2) +
         ggtitle('Best fitness');
     print(P1);
 
     Prediction = PSO.EvaluateSolution(Input, Result$BestSolution);
     Classification = PSO.Prediction2Classification(Prediction);
     print(Classification);
-
-    EndTime = now();
-    print(sprintf('running time = %0.2f minutes', difftime(EndTime, StartTime, units = 'mins')));
 }
 
 PSO.UnitTest2 = function()
@@ -522,12 +439,7 @@ PSO.UnitTest3 = function()
     #colnames(ColRow) = c('Col', 'Row');
     #Sub.Grid = cbind(Sub.Grid, ColRow);
 
-    StartTime = now();
-    print(StartTime);
-
-    # setup data
     load('Sub.Grid.rdata');
-    SelectedColumn = c('ti_18_avg');
 
     Distance = abs(Sub.Grid[, 'Col'] - 45) + abs(Sub.Grid[, 'Row'] - 47);
     Dis.Scaler = MinMaxScaler(Distance, range = c(0, 1));
@@ -543,78 +455,32 @@ PSO.UnitTest3 = function()
     Median.Transform = MinMaxScaler.Transform(Sub.Grid[, 'ti_18_p90'], Median.Scaler);
 
     Input = cbind(Col.Transform, Row.Transform, Dis.Transform);
-    Output = cbind(Avg.Transform);
+    #Output = matrix(data = Value.Transform, nrow = length(Value.Transform));
+    Output = cbind(Avg.Transform);#, Median.Transform
 
-    # train neural network
-    TrainedNeuralNetwork = PSO.Execute(Input, Output);
-    save(file = 'Result/TrainedNeuralNetwork.rdata', TrainedNeuralNetwork);
-
-    # plot tracked fitness 
+    Result = PSO.Execute(Input, Output);
     P1 = ggplot() +
-        geom_line(data = TrainedNeuralNetwork$TrackBestFitness, aes(x = Iteration, y = TrainingError), col = 'darkblue', size = 2);
+        geom_line(data = Result$TrackBestFitness, aes(x = Iteration, y = Fitness), col = 'darkblue', size = 2) +
+        ggtitle('Best fitness');
     print(P1);
 
-    # predict values
-    Prediction = PSO.EvaluateSolution(Input, TrainedNeuralNetwork$BestSolution);
-
-    # value transform
+    Prediction = PSO.EvaluateSolution(Input, Result$BestSolution);
     Avg.Inverse = MinMaxScaler.Inverse(Prediction[, 1], Avg.Scaler);
+    #Median.Inverse = MinMaxScaler.Inverse(Prediction[, 2], Median.Scaler);
 
-    # comparison: groud truth vs. prediction
     Avg.Difference = Avg.Inverse - Sub.Grid[, 'ti_18_avg'];
-    #Comparison = cbind(Sub.Grid[, SelectedColumn], Avg.Difference);
-    #print(Comparison);
+    #Median.Difference = Median.Inverse - Sub.Grid[, 'ti_18_p90'];
+    Comparison = cbind(Sub.Grid[, SelectedColumn], Avg.Difference);#, Median.Difference
+    print(Comparison);
 
     print(sprintf('BestFitness = %0.4f; sum(abs(Avg.Difference)) = %0.4f',
-        tail(TrainedNeuralNetwork$TrackBestFitness, n = 1)[2], sum(abs(Avg.Difference))));
-
-    EndTime = now();
-    print(sprintf('running time = %0.2f minutes', difftime(EndTime, StartTime, units = 'mins')));
+        tail(Result$TrackBestFitness, n = 1)[2], sum(abs(Avg.Difference))));
 }
 
-PSO.UnitTest4 = function()
+Threshold.Velocity = function(x, threshold)
 {
-    StartTime = now();
-
-    # setup data
-    load('Sub.Grid.rdata');
-    SelectedColumn = c('ti_18_avg');
-
-    Distance = abs(Sub.Grid[, 'Col'] - 45) + abs(Sub.Grid[, 'Row'] - 47);
-    Dis.Scaler = MinMaxScaler(Distance, range = c(0, 1));
-    Dis.Transform = MinMaxScaler.Transform(Distance, Dis.Scaler);
-
-    Col.Scaler = MinMaxScaler(Sub.Grid[, 'Col'], range = c(0, 1));
-    Col.Transform = MinMaxScaler.Transform(Sub.Grid[, 'Col'], Col.Scaler);
-    Row.Scaler = MinMaxScaler(Sub.Grid[, 'Row'], range = c(0, 1));
-    Row.Transform = MinMaxScaler.Transform(Sub.Grid[, 'Row'], Row.Scaler);
-    Avg.Scaler = MinMaxScaler(Sub.Grid[, 'ti_18_avg'], range = c(0, 1));
-    Avg.Transform = MinMaxScaler.Transform(Sub.Grid[, 'ti_18_avg'], Avg.Scaler);
-    Median.Scaler = MinMaxScaler(Sub.Grid[, 'ti_18_p90'], range = c(0, 1));
-    Median.Transform = MinMaxScaler.Transform(Sub.Grid[, 'ti_18_p90'], Median.Scaler);
-
-    Input = cbind(Col.Transform, Row.Transform, Dis.Transform);
-    Output = cbind(Avg.Transform);
-
-    # train neural network
-    Boot.TrainedNeuralNetwork = Train.Bagging.NerualNetwork(Input, Output);
-
-    # predict values
-    Prediction = Bagging.NerualNetwork.Prediction(Input, Boot.TrainedNeuralNetwork);
-
-    # value transform
-    Avg.Inverse = MinMaxScaler.Inverse(Prediction[, 1], Avg.Scaler);
-
-    # comparison: groud truth vs. prediction
-    Avg.Difference = Avg.Inverse - Sub.Grid[, 'ti_18_avg'];
-    Comparison = cbind(Sub.Grid[, SelectedColumn], Avg.Difference);
-    #print(Comparison);
-
-    EndTime = now();
-    print(sprintf('running time = %0.2f minutes', difftime(EndTime, StartTime, units = 'mins')));
+    ifelse(x <= threshold, return(x), return(threshold));
 }
 
-#
 GlobalFunctions = ls(.GlobalEnv);
-clusterExport(GlobalLocalCluster, list(GlobalFunctions, 'Threshold.Velocity', 'PSO.Apply.Alternative',
-    'Activation.Logistic', 'Config', 'PSO.EvaluateGeneration', 'PSO.EvaluateSolution', 'PSO.EvaluateError'));
+clusterExport(GlobalLocalCluster, varlist = list(GlobalFunctions, 'Threshold.Velocity'));

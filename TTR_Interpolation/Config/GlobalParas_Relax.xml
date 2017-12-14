@@ -2,30 +2,30 @@
 <config>
   <wd>D:/MySVN/UA-Research/Dr Xia/R Code/TTR_Interpolation/TTR_Interpolation</wd>
   <model>
-    <name>NN + BAGGING + PSO</name>
+    <name>NN + BAGGING + PSO + DPSO</name>
 	<core default = '6'>7</core>
     <neuralnetwork>
       <numsolution default = '114'>120</numsolution>
       <initialgeneration>
-        <maxtry default = '100'>100</maxtry>
+        <maxtry default = '100'>200</maxtry>
         <initialerror default = '0.14'>0.14</initialerror>
       </initialgeneration>
       <solution>
         <initialweight>
-          <min default = '-6'>-3</min>
-          <max default = '6'>3</max>
+          <min default = '-6'>-6</min>
+          <max default = '6'>6</max>
         </initialweight>
       </solution>
-      <structure default = '32,32,16,8'>16,8</structure>
+      <structure default = '32,32,16,8'>128,64</structure>
     </neuralnetwork>
     <pso>
       <name>partical swarm optimization</name>
 	    <iteration default = '2500'>2000</iteration>
-      <C1 default = '1.49445'>2</C1>
-      <C2 default = '1.49445'>2</C2>
+      <C1 default = '1.49445'>1.49445</C1>
+      <C2 default = '1.49445'>1.49445</C2>
       <velocitythreshold default = '4'>4</velocitythreshold>
       <inertiaweight>
-        <from default = '0.5'>0.1</from>
+        <from default = '0.5'>0.5</from>
         <to default = '0.001'>0.001</to>
       </inertiaweight>
     </pso>

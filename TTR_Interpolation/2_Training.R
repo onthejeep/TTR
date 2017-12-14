@@ -1,6 +1,6 @@
 
 
-source('0_ParallelComputingSetup.R');
+#source('0_ParallelComputingSetup.R');
 
 
 
@@ -8,6 +8,7 @@ source('0_ParallelComputingSetup.R');
 PSO.NeuralNetwork.ST.Intepolation = function()
 {
     StartTime = now();
+    print(StartTime);
 
     # setup data
     load('TrainTestData/Train.rdata'); # Train
@@ -49,7 +50,8 @@ PSO.NeuralNetwork.ST.Intepolation = function()
     Pt.Transform = MinMaxScaler.Transform(Train[, 'pt'], Pt.Scaler);
 
     Input = cbind(TI.Transform, Col.Transform, Row.Transform, Dis.Transform);
-    Output = cbind(Avg.Transform, Std.Transform, Cov.Transform,  P90.Transform, P95.Transform, Bt.Transform, Pt.Transform);
+    Output = cbind(Avg.Transform);
+    # , Std.Transform, Cov.Transform,  P90.Transform, P95.Transform, Bt.Transform, Pt.Transform
 
     # train neural network
     Boot.TrainedNeuralNetwork = Train.Bagging.NerualNetwork(Input, Output);

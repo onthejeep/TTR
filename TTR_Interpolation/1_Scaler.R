@@ -11,7 +11,7 @@
 # data inverse
 
 
-MinMaxScaler.Transform = function(x, scaler))
+MinMaxScaler.Transform = function(x, scaler)
 {
     Scaled = scaler$TransformRange * (x - scaler$Min) / scaler$Range + scaler$TransformMin;
 }

@@ -541,7 +541,7 @@ PSO.UnitTest3 = function()
     # comparison: groud truth vs. prediction
     Avg.Difference = Avg.Inverse - Sub.Grid[, 'ti_18_avg'];
     Comparison = cbind(Sub.Grid[, SelectedColumn], Avg.Difference);
-    print(Comparison);
+    #print(Comparison);
 
     print(sprintf('BestFitness = %0.4f; sum(abs(Avg.Difference)) = %0.4f',
         tail(TrainedNeuralNetwork$TrackBestFitness, n = 1)[2], sum(abs(Avg.Difference))));
@@ -586,7 +586,7 @@ PSO.UnitTest4 = function()
     # comparison: groud truth vs. prediction
     Avg.Difference = Avg.Inverse - Sub.Grid[, 'ti_18_avg'];
     Comparison = cbind(Sub.Grid[, SelectedColumn], Avg.Difference);
-    print(Comparison);
+    #print(Comparison);
 
     EndTime = now();
     print(sprintf('running time = %0.2f minutes', difftime(EndTime, StartTime, units = 'mins')));
